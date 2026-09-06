@@ -287,3 +287,39 @@ fn issue_1768() {
 
     assert!(cur.peek(3, true, interner).unwrap().is_none());
 }
+
+#[test]
+#[cfg(feature = "annex-b")]
+fn html_close_comment_first_line() {
+    let interner = &mut Interner::default();
+
+    // 1. Direct `-->` on the first line.
+    let mut cur = BufferedLexer::from(&b"--> comment\nA"[..]);
+    assert_eq!(
+        *cur.peek(0, true, interner)
+            .unwrap()
+            .expect("Some value expected")
+            .kind(),
+        TokenKind::identifier(interner.get_or_intern_static("A", utf16!("A")))
+    );
+
+    // 2. Spaces preceding `-->` on the first line.
+    let mut cur = BufferedLexer::from(&b"   --> comment\nB"[..]);
+    assert_eq!(
+        *cur.peek(0, true, interner)
+            .unwrap()
+            .expect("Some value expected")
+            .kind(),
+        TokenKind::identifier(interner.get_or_intern_static("B", utf16!("B")))
+    );
+
+    // 3. Single-line delimited comments and spaces preceding `-->` on the first line.
+    let mut cur = BufferedLexer::from(&b"/* comment 1 */ /* comment 2 */--> comment 3\nC"[..]);
+    assert_eq!(
+        *cur.peek(0, true, interner)
+            .unwrap()
+            .expect("Some value expected")
+            .kind(),
+        TokenKind::identifier(interner.get_or_intern_static("C", utf16!("C")))
+    );
+}

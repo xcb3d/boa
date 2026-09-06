@@ -30,6 +30,7 @@ pub(super) struct BufferedLexer<R> {
     read_index: usize,
     write_index: usize,
     last_linear_pos: LinearPosition,
+    first_token: bool,
 }
 
 impl<R> From<Lexer<R>> for BufferedLexer<R>
@@ -53,6 +54,7 @@ where
             read_index: 0,
             write_index: 0,
             last_linear_pos: LinearPosition::default(),
+            first_token: true,
         }
     }
 }
@@ -134,7 +136,23 @@ where
 
         let previous_index = self.write_index.checked_sub(1).unwrap_or(PEEK_BUF_SIZE - 1);
 
-        if let Some(ref token) = self.peeked[previous_index]
+        if self.first_token {
+            self.first_token = false;
+            let next = loop {
+                self.lexer.skip_html_close(interner)?;
+                let next = self.lexer.next_no_skip(interner)?;
+                if let Some(ref token) = next {
+                    match token.kind() {
+                        TokenKind::Comment => self.lexer.skip_html_close(interner)?,
+                        _ => break next,
+                    }
+                } else {
+                    break None;
+                }
+            };
+
+            self.peeked[self.write_index] = next;
+        } else if let Some(ref token) = self.peeked[previous_index]
             && token.kind() == &TokenKind::LineTerminator
         {
             // We don't want to have multiple contiguous line terminators in the buffer, since
